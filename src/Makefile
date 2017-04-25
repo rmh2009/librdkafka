@@ -14,6 +14,8 @@ SRCS_$(WITH_SASL_SCRAM) += rdkafka_sasl_scram.c
 SRCS_$(WITH_SNAPPY) += snappy.c
 SRCS_$(WITH_ZLIB) += rdgz.c
 SRCS_$(WITH_LZ4) += xxhash.c
+SRCS_$(WITH_LIBDL) += rddl.c
+SRCS_$(WITH_PLUGINS) += rdkafka_plugin.c
 
 ifeq ($(HAVE_REGEX), n)
 SRCS_y += regexp.c
