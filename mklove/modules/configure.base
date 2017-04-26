@@ -155,6 +155,22 @@ function mkl_env_append {
 
 }
 
+# Prepend to environment variable
+# Arguments:
+#  varname
+#  varvalue
+#  [ separator (" ") ]
+function mkl_env_prepend {
+    local sep=" "
+    if [[ -z ${!1} ]]; then
+        mkl_env_set "$1" "$2"
+    else
+        [ ! -z ${3} ] && sep="$3"
+        mkl_var0_set "$1" "$2${sep}${!1}"
+    fi
+
+}
+
 
 
 
@@ -166,6 +182,19 @@ function mkl_env_append {
 function mkl_mkvar_set {
     if [[ ! -z $2 ]]; then
         mkl_env_set "$2" "$3"
+        mkl_in_list "$MKL_MKVARS" "$2"|| mkl_env_append MKL_MKVARS $2
+    fi
+}
+
+
+# Prepends to a make variable (Makefile.config)
+# Arguments:
+#  config name
+#  variable name
+#  value
+function mkl_mkvar_prepend {
+    if [[ ! -z $2 ]]; then
+        mkl_env_prepend "$2" "$3"
         mkl_in_list "$MKL_MKVARS" "$2"|| mkl_env_append MKL_MKVARS $2
     fi
 }
@@ -183,6 +212,18 @@ function mkl_mkvar_append {
     fi
 }
 
+
+# Prepends to a make variable (Makefile.config)
+# Arguments:
+#  config name
+#  variable name
+#  value
+function mkl_mkvar_append {
+    if [[ ! -z $2 ]]; then
+        mkl_env_prepend "$2" "$3"
+        mkl_in_list "$MKL_MKVARS" "$2"|| mkl_env_append MKL_MKVARS $2
+    fi
+}
 
 # Return mkvar variable value
 # Arguments:
@@ -851,7 +892,9 @@ function mkl_check_begin {
 #  status (ok|failed)
 #  extra-info (optional)
 function mkl_check_done {
-    mkl_var_set "MKL_STATUS_$1" "$4" cache
+    # Clean up configname to be a safe varname
+    local cname=${1//-/_}
+    mkl_var_set "MKL_STATUS_$cname" "$4" cache
 
     local extra=""
     if [[ $4 = "failed" ]]; then
@@ -867,8 +910,8 @@ function mkl_check_done {
         esac
         echo -e " $clr$4$MKL_CLR_RESET${extra}"
     else
-        [[ ! -z $2 ]] && mkl_define_set "$1" "$2" "1"
-        [[ ! -z $2 ]] && mkl_mkvar_set  "$1" "$2" "y"
+        [[ ! -z $2 ]] && mkl_define_set "$cname" "$2" "1"
+        [[ ! -z $2 ]] && mkl_mkvar_set  "$cname" "$2" "y"
         [ ! -z "$5" ] && extra=" ($5)"
         echo -e " $MKL_GREEN$4${MKL_CLR_RESET}$extra"
     fi
@@ -1016,6 +1059,7 @@ function mkl_lib_check_static {
 #  source snippet
 function mkl_lib_check {
 
+    local is_static=0
     local staticopt=
     if [[ $1 == --static* ]]; then
         staticopt=$1
@@ -1035,6 +1079,7 @@ function mkl_lib_check {
         libs="$5"
         if [[ $WITH_STATIC_LINKING == y && ! -z $staticopt ]]; then
             libs=$(mkl_lib_check_static "${staticopt#*=}" "$libs")
+            is_static=1
         fi
     fi
 
@@ -1042,7 +1087,11 @@ function mkl_lib_check {
         return 1
     fi
 
-    mkl_mkvar_append "$1" LIBS "$libs"
+    if [[ $is_static == 1 ]]; then
+        mkl_mkvar_prepend "$1" LIBS "$libs"
+    else
+        mkl_mkvar_append "$1" LIBS "$libs"
+    fi
 
     return 0
 }
@@ -1090,12 +1139,13 @@ $cflags"
     mkl_mkvar_append $1 "CFLAGS" "$cflags"
 
     if [[ $WITH_STATIC_LINKING == y && ! -z $staticopt ]]; then
-	libs=$(mkl_lib_check_static "${staticopt#*=}" "$libs")
+        libs=$(mkl_lib_check_static "${staticopt#*=}" "$libs")
+        mkl_mkvar_prepend "$1" LIBS "$libs"
+    else
+        mkl_mkvar_append "$1" LIBS "$libs"
     fi
 
-    mkl_mkvar_append "$1" LIBS "$libs"
-
-    mkl_check_done "$cname" "$2" "$3" "ok"
+    mkl_check_done "$1" "$2" "$3" "ok"
 
     return 0
 }
